@@ -56,6 +56,8 @@ see []
 
 # References
 
+* [RFC 2898 Password-Based Cryptography][^1]
+
 [^1]: http://tools.ietf.org/html/rfc2898
 [^2]: http://tools.ietf.org/html/rfc2307
 [^3]: http://tools.ietf.org/html/draft-josefsson-pbkdf2-test-vectors-06
