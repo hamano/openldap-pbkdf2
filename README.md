@@ -1,4 +1,4 @@
-PBKDF2 OpenLDAP support
+PBKDF2 for OpenLDAP
 =======================
 
 pw-pbkdf2.c provides support for PBKDF2 key derivation functions in
@@ -11,7 +11,7 @@ OpenLDAP.
 # Installations
 
     $ cd <OPENLDAP_BUILD_DIR>/contrib/slapd-modules/passwd/
-    $ git clone
+    $ git clone https://github.com/hamano/openldap-pbkdf2.git
     $ cd openldap-pbkdf2/
     $ make
     # make install
@@ -46,10 +46,21 @@ Then to test, run something like:
     $ ldapsearch -x -b "dc=example,dc=com" -D "cn=Manager,dc=example,dc=com" -w secret
 
 # Debugging
-You can specify -DSLAPD_PBKDF2_DEBUG to compile flag for debugging.
+You can specify -DSLAPD_PBKDF2_DEBUG flag for debugging.
+
+# Message Format
+
+    {PBKDF2}<Iteration>$<Base64 Encoded Salt>$<Base64 Encoded DK>
+
+see []
+
+# References
+
+[1]: http://tools.ietf.org/html/rfc2898
+[2]: http://tools.ietf.org/html/rfc2307
+[3]: http://tools.ietf.org/html/draft-josefsson-pbkdf2-test-vectors-06
 
 # License
----
 This work is part of OpenLDAP Software <http://www.openldap.org/>.
 
 Copyright 2009-2013 The OpenLDAP Foundation.
@@ -62,9 +73,6 @@ Public License.
 A copy of this license is available in the file LICENSE in the
 top-level directory of the distribution or, alternatively, at
 <http://www.OpenLDAP.org/license.html>.
----
 
-ACKNOWLEDGEMENT:
+# ACKNOWLEDGEMENT
 This work was initially developed by HAMANO Tsukasa <hamano@osstech.co.jp>
-
-
