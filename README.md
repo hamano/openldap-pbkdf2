@@ -50,7 +50,7 @@ You can specify -DSLAPD_PBKDF2_DEBUG flag for debugging.
 
 # Message Format
 
-    {PBKDF2}<Iteration>$<Base64 Encoded Salt>$<Base64 Encoded DK>
+    {PBKDF2}<Iteration>$<Adapted Base64 Salt>$<Adapted Base64 DK>
 
 # References
 
@@ -62,6 +62,9 @@ You can specify -DSLAPD_PBKDF2_DEBUG flag for debugging.
 
 * [PKCS #5 PBKDF2 Test Vectors][^3]
 [^3]: http://tools.ietf.org/html/draft-josefsson-pbkdf2-test-vectors-06
+
+* [Adapted Base64 Encoding][^4]
+[^4]: http://pythonhosted.org/passlib/lib/passlib.utils.html#passlib.utils.ab64_encode
 
 # License
 This work is part of OpenLDAP Software <http://www.openldap.org/>.
