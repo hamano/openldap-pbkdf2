@@ -180,10 +180,10 @@ static int pbkdf2_check(
 	int rc;
 	int iteration;
 
-	// salt_value require PBKDF2_SALT_SIZE + 1 in lutil_b64_pton.
+	/* salt_value require PBKDF2_SALT_SIZE + 1 in lutil_b64_pton. */
 	unsigned char salt_value[PBKDF2_SALT_SIZE + 1];
 	char salt_b64[LUTIL_BASE64_ENCODE_LEN(PBKDF2_SALT_SIZE) + 1];
-	// dk_value require PBKDF2_DK_SIZE + 1 in lutil_b64_pton.
+	/* dk_value require PBKDF2_DK_SIZE + 1 in lutil_b64_pton. */
 	unsigned char dk_value[PBKDF2_DK_SIZE + 1];
 	char dk_b64[LUTIL_BASE64_ENCODE_LEN(PBKDF2_DK_SIZE) + 1];
 	unsigned char input_dk_value[PBKDF2_DK_SIZE];
@@ -204,7 +204,7 @@ static int pbkdf2_check(
 	if(!ptr){
 		return LUTIL_PASSWD_ERR;
 	}
-	ptr++; // skip '$'
+	ptr++; /* skip '$' */
 	rc = ab64_to_b64(ptr, salt_b64, sizeof(salt_b64));
 	if(rc < 0){
 		return LUTIL_PASSWD_ERR;
@@ -214,30 +214,30 @@ static int pbkdf2_check(
 	if(!ptr){
 		return LUTIL_PASSWD_ERR;
 	}
-	ptr++; // skip '$'
+	ptr++; /* skip '$' */
 	rc = ab64_to_b64(ptr, dk_b64, sizeof(dk_b64));
 	if(rc < 0){
 		return LUTIL_PASSWD_ERR;
 	}
 
-	// The targetsize require PBKDF2_SALT_SIZE + 1 in lutil_b64_pton.
+	/* The targetsize require PBKDF2_SALT_SIZE + 1 in lutil_b64_pton. */
 	rc = lutil_b64_pton(salt_b64, salt_value, PBKDF2_SALT_SIZE + 1);
 	if(rc < 0){
 		return LUTIL_PASSWD_ERR;
 	}
 
-	// consistency check
+	/* consistency check */
 	if(rc != PBKDF2_SALT_SIZE){
 		return LUTIL_PASSWD_ERR;
 	}
 
-	// The targetsize require PBKDF2_DK_SIZE + 1 in lutil_b64_pton.
+	/* The targetsize require PBKDF2_DK_SIZE + 1 in lutil_b64_pton. */
 	rc = lutil_b64_pton(dk_b64, dk_value, PBKDF2_DK_SIZE + 1);
 	if(rc < 0){
 		return LUTIL_PASSWD_ERR;
 	}
 
-	// consistency check
+	/* consistency check */
 	if(rc != PBKDF2_DK_SIZE){
 		return LUTIL_PASSWD_ERR;
 	}
@@ -282,7 +282,7 @@ int init_module(int argc, char *argv[]) {
 						  pbkdf2_check, pbkdf2_encrypt);
 	if(!rc) return rc;
 
-	// TODO: add {PBKDF2-SHA256} and {PBKDF2-SHA512} schemes.
+	/* TODO: add {PBKDF2-SHA256} and {PBKDF2-SHA512} schemes. */
 	return rc;
 }
 
