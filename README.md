@@ -56,9 +56,9 @@ see []
 
 # References
 
-[1]: http://tools.ietf.org/html/rfc2898
-[2]: http://tools.ietf.org/html/rfc2307
-[3]: http://tools.ietf.org/html/draft-josefsson-pbkdf2-test-vectors-06
+[^1]: http://tools.ietf.org/html/rfc2898
+[^2]: http://tools.ietf.org/html/rfc2307
+[^3]: http://tools.ietf.org/html/draft-josefsson-pbkdf2-test-vectors-06
 
 # License
 This work is part of OpenLDAP Software <http://www.openldap.org/>.
