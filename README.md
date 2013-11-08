@@ -52,8 +52,6 @@ You can specify -DSLAPD_PBKDF2_DEBUG flag for debugging.
 
     {PBKDF2}<Iteration>$<Base64 Encoded Salt>$<Base64 Encoded DK>
 
-see []
-
 # References
 
 * [RFC 2898 Password-Based Cryptography][^1]
