@@ -57,14 +57,17 @@ You can specify -DSLAPD_PBKDF2_DEBUG flag for debugging.
 * [RFC 2898 Password-Based Cryptography][^1]
 [^1]: http://tools.ietf.org/html/rfc2898
 
-* [RFC 2307 Using LDAP as a Network Information Service][^2]
-[^2]: http://tools.ietf.org/html/rfc2307
+* [PKCS #5 PBKDF2 Test Vectors][^2]
+[^2]: http://tools.ietf.org/html/draft-josefsson-pbkdf2-test-vectors-06
 
-* [PKCS #5 PBKDF2 Test Vectors][^3]
-[^3]: http://tools.ietf.org/html/draft-josefsson-pbkdf2-test-vectors-06
+* [RFC 2307 Using LDAP as a Network Information Service][^3]
+[^3]: http://tools.ietf.org/html/rfc2307
 
-* [Adapted Base64 Encoding][^4]
-[^4]: http://pythonhosted.org/passlib/lib/passlib.utils.html#passlib.utils.ab64_encode
+* [Python Passlib][^4]
+[^4]: http://pythonhosted.org/passlib/
+
+* [Adapted Base64 Encoding][^5]
+[^5]: http://pythonhosted.org/passlib/lib/passlib.utils.html#passlib.utils.ab64_encode
 
 # License
 This work is part of OpenLDAP Software <http://www.openldap.org/>.
