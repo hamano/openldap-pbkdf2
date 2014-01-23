@@ -29,7 +29,8 @@
 #define PBKDF2_DK_SIZE   20
 #define PBKDF2_ITERATION 60000
 
-const struct berval pbkdf2scheme = BER_BVC("{PBKDF2}");
+const struct berval pbkdf2_scheme = BER_BVC("{PBKDF2}");
+const struct berval pbkdf2_sha1_scheme = BER_BVC("{PBKDF2-SHA1}");
 
 /*
  * Converting base64 string to adapted base64 string.
@@ -143,9 +144,18 @@ static int pbkdf2_encrypt(
 		return LUTIL_PASSWD_ERR;
 	}
 
+#if 0
 	if(!PKCS5_PBKDF2_HMAC_SHA1(passwd->bv_val, passwd->bv_len,
 							   (unsigned char *)salt.bv_val, salt.bv_len,
 							   iteration, PBKDF2_DK_SIZE, dk_value)){
+		return LUTIL_PASSWD_ERR;
+	}
+#endif
+
+	if(!PKCS5_PBKDF2_HMAC(passwd->bv_val, passwd->bv_len,
+						  (unsigned char *)salt.bv_val, salt.bv_len,
+						  iteration, EVP_sha1(),
+						  PBKDF2_DK_SIZE, dk_value)){
 		return LUTIL_PASSWD_ERR;
 	}
 
@@ -278,9 +288,12 @@ static int pbkdf2_check(
 
 int init_module(int argc, char *argv[]) {
 	int rc;
-	rc = lutil_passwd_add((struct berval *)&pbkdf2scheme,
+	rc = lutil_passwd_add((struct berval *)&pbkdf2_scheme,
 						  pbkdf2_check, pbkdf2_encrypt);
-	if(!rc) return rc;
+	if(rc) return rc;
+	rc = lutil_passwd_add((struct berval *)&pbkdf2_sha1_scheme,
+						  pbkdf2_check, pbkdf2_encrypt);
+	if(rc) return rc;
 
 	/* TODO: add {PBKDF2-SHA256} and {PBKDF2-SHA512} schemes. */
 	return rc;
