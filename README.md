@@ -1,8 +1,14 @@
 PBKDF2 for OpenLDAP
 =======================
 
-pw-pbkdf2.c provides support for PBKDF2 key derivation functions in
-OpenLDAP.
+pw-pbkdf2.c provides PBKDF2 key derivation functions in OpenLDAP.
+
+Schemes:
+
+ * {PBKDF2} -  alias to {PBKDF2-SHA1}
+ * {PBKDF2-SHA1}
+ * {PBKDF2-SHA256}
+ * {PBKDF2-SHA512}
 
 # Requirements
 
@@ -27,6 +33,10 @@ Password Modify Extended Operations, thanks to the password-hash
 option in slapd.conf. For example:
 
     password-hash {PBKDF2}
+or
+    password-hash {PBKDF2-SHA256}
+or
+    password-hash {PBKDF2-SHA512}
 
 # Testing
 
