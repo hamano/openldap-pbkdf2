@@ -25,7 +25,7 @@
 
 #include <openssl/evp.h>
 
-#define PBKDF2_ITERATION 60000
+#define PBKDF2_ITERATION 10000
 #define PBKDF2_SALT_SIZE 16
 #define PBKDF2_SHA1_DK_SIZE 20
 #define PBKDF2_SHA256_DK_SIZE 32
