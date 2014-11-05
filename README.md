@@ -16,6 +16,8 @@ Schemes:
 
 # Installations
 
+First, You need to configure and build OpenLDAP.
+
     $ cd <OPENLDAP_BUILD_DIR>/contrib/slapd-modules/passwd/
     $ git clone https://github.com/hamano/openldap-pbkdf2.git
     $ cd openldap-pbkdf2/

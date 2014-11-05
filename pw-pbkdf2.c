@@ -30,6 +30,7 @@
 #define PBKDF2_SHA1_DK_SIZE 20
 #define PBKDF2_SHA256_DK_SIZE 32
 #define PBKDF2_SHA512_DK_SIZE 64
+#define PBKDF2_MAX_DK_SIZE 64
 
 const struct berval pbkdf2_scheme = BER_BVC("{PBKDF2}");
 const struct berval pbkdf2_sha1_scheme = BER_BVC("{PBKDF2-SHA1}");
@@ -90,7 +91,7 @@ static int ab64_to_b64(char *src, char *dst, size_t dstsize){
 	return 0;
 }
 
-static int pbkdf2_sha1_format(
+static int pbkdf2_format(
 	const struct berval *sc,
 	int iteration,
 	const struct berval *salt,
@@ -100,7 +101,7 @@ static int pbkdf2_sha1_format(
 
 	int rc;
 	char salt_b64[LUTIL_BASE64_ENCODE_LEN(PBKDF2_SALT_SIZE) + 1];
-	char dk_b64[LUTIL_BASE64_ENCODE_LEN(PBKDF2_SHA1_DK_SIZE) + 1];
+	char dk_b64[LUTIL_BASE64_ENCODE_LEN(PBKDF2_MAX_DK_SIZE) + 1];
 
 	rc = lutil_b64_ntop((unsigned char *)salt->bv_val, salt->bv_len,
 						salt_b64, sizeof(salt_b64));
@@ -124,7 +125,7 @@ static int pbkdf2_sha1_format(
 	return LUTIL_PASSWD_OK;
 }
 
-static int pbkdf2_sha1_encrypt(
+static int pbkdf2_encrypt(
 	const struct berval *scheme,
 	const struct berval *passwd,
 	struct berval *msg,
@@ -132,37 +133,43 @@ static int pbkdf2_sha1_encrypt(
 {
 	unsigned char salt_value[PBKDF2_SALT_SIZE];
 	struct berval salt;
-	unsigned char dk_value[PBKDF2_SHA1_DK_SIZE];
+	unsigned char dk_value[PBKDF2_MAX_DK_SIZE];
 	struct berval dk;
 	int iteration = PBKDF2_ITERATION;
 	int rc;
+	const EVP_MD *md;
 
-	dk.bv_val = (char *)dk_value;
-	dk.bv_len = PBKDF2_SHA1_DK_SIZE;
 	salt.bv_val = (char *)salt_value;
 	salt.bv_len = sizeof(salt_value);
+	dk.bv_val = (char *)dk_value;
+	if(!ber_bvcmp(scheme, &pbkdf2_scheme)){
+		dk.bv_len = PBKDF2_SHA1_DK_SIZE;
+		md = EVP_sha1();
+	}else if(!ber_bvcmp(scheme, &pbkdf2_sha1_scheme)){
+		dk.bv_len = PBKDF2_SHA1_DK_SIZE;
+		md = EVP_sha1();
+	}else if(!ber_bvcmp(scheme, &pbkdf2_sha256_scheme)){
+		dk.bv_len = PBKDF2_SHA256_DK_SIZE;
+		md = EVP_sha256();
+	}else if(!ber_bvcmp(scheme, &pbkdf2_sha512_scheme)){
+		dk.bv_len = PBKDF2_SHA512_DK_SIZE;
+		md = EVP_sha512();
+	}else{
+		return LUTIL_PASSWD_ERR;
+	}
 
 	if(lutil_entropy((unsigned char *)salt.bv_val, salt.bv_len) < 0){
 		return LUTIL_PASSWD_ERR;
 	}
 
-#if 0
-	if(!PKCS5_PBKDF2_HMAC_SHA1(passwd->bv_val, passwd->bv_len,
-							   (unsigned char *)salt.bv_val, salt.bv_len,
-							   iteration, PBKDF2_SHA1_DK_SIZE, dk_value)){
-		return LUTIL_PASSWD_ERR;
-	}
-#endif
-
 	if(!PKCS5_PBKDF2_HMAC(passwd->bv_val, passwd->bv_len,
 						  (unsigned char *)salt.bv_val, salt.bv_len,
-						  iteration, EVP_sha1(),
-						  PBKDF2_SHA1_DK_SIZE, dk_value)){
+						  iteration, md, dk.bv_len, dk_value)){
 		return LUTIL_PASSWD_ERR;
 	}
 
 #ifdef SLAPD_PBKDF2_DEBUG
-	printf("DEBUG pbkdf2_sha1_encrypt()\n");
+	printf("Encrypt for %s\n", scheme->bv_val);
 	printf("  Password:\t%s\n", passwd->bv_val);
 
 	printf("  Salt:\t\t");
@@ -174,13 +181,13 @@ static int pbkdf2_sha1_encrypt(
 	printf("  Iteration:\t%d\n", iteration);
 
 	printf("  DK:\t\t");
-	for(i=0; i<PBKDF2_SHA1_DK_SIZE; i++){
+	for(i=0; i<dk.bv_len; i++){
 		printf("%02x", dk_value[i]);
 	}
 	printf("\n");
 #endif
 
-	rc = pbkdf2_sha1_format(scheme, iteration, &salt, &dk, msg);
+	rc = pbkdf2_format(scheme, iteration, &salt, &dk, msg);
 
 #ifdef SLAPD_PBKDF2_DEBUG
 	printf("  Output:\t%s\n", msg->bv_val);
@@ -189,7 +196,7 @@ static int pbkdf2_sha1_encrypt(
 	return rc;
 }
 
-static int pbkdf2_sha1_check(
+static int pbkdf2_check(
 	const struct berval *scheme,
 	const struct berval *passwd,
 	const struct berval *cred,
@@ -201,16 +208,34 @@ static int pbkdf2_sha1_check(
 	/* salt_value require PBKDF2_SALT_SIZE + 1 in lutil_b64_pton. */
 	unsigned char salt_value[PBKDF2_SALT_SIZE + 1];
 	char salt_b64[LUTIL_BASE64_ENCODE_LEN(PBKDF2_SALT_SIZE) + 1];
-	/* dk_value require PBKDF2_SHA1_DK_SIZE + 1 in lutil_b64_pton. */
-	unsigned char dk_value[PBKDF2_SHA1_DK_SIZE + 1];
-	char dk_b64[LUTIL_BASE64_ENCODE_LEN(PBKDF2_SHA1_DK_SIZE) + 1];
-	unsigned char input_dk_value[PBKDF2_SHA1_DK_SIZE];
+	/* dk_value require PBKDF2_MAX_DK_SIZE + 1 in lutil_b64_pton. */
+	unsigned char dk_value[PBKDF2_MAX_DK_SIZE + 1];
+	char dk_b64[LUTIL_BASE64_ENCODE_LEN(PBKDF2_MAX_DK_SIZE) + 1];
+	unsigned char input_dk_value[PBKDF2_MAX_DK_SIZE];
+	size_t dk_len;
+	const EVP_MD *md;
 
 #ifdef SLAPD_PBKDF2_DEBUG
-	printf("DEBUG pbkdf2_sha1_check()\n");
+	printf("Checking for %s\n", scheme->bv_val);
 	printf("  Stored Value:\t%s\n", passwd->bv_val);
 	printf("  Input Cred:\t%s\n", cred->bv_val);
 #endif
+
+	if(!ber_bvcmp(scheme, &pbkdf2_scheme)){
+		dk_len = PBKDF2_SHA1_DK_SIZE;
+		md = EVP_sha1();
+	}else if(!ber_bvcmp(scheme, &pbkdf2_sha1_scheme)){
+		dk_len = PBKDF2_SHA1_DK_SIZE;
+		md = EVP_sha1();
+	}else if(!ber_bvcmp(scheme, &pbkdf2_sha256_scheme)){
+		dk_len = PBKDF2_SHA256_DK_SIZE;
+		md = EVP_sha256();
+	}else if(!ber_bvcmp(scheme, &pbkdf2_sha512_scheme)){
+		dk_len = PBKDF2_SHA512_DK_SIZE;
+		md = EVP_sha512();
+	}else{
+		return LUTIL_PASSWD_ERR;
+	}
 
 	iteration = atoi(passwd->bv_val);
 	if(iteration < 1){
@@ -249,25 +274,24 @@ static int pbkdf2_sha1_check(
 		return LUTIL_PASSWD_ERR;
 	}
 
-	/* The targetsize require PBKDF2_DK_SIZE + 1 in lutil_b64_pton. */
-	rc = lutil_b64_pton(dk_b64, dk_value, PBKDF2_SHA1_DK_SIZE + 1);
+	/* The targetsize require PBKDF2_MAX_DK_SIZE + 1 in lutil_b64_pton. */
+	rc = lutil_b64_pton(dk_b64, dk_value, sizeof(dk_value));
 	if(rc < 0){
 		return LUTIL_PASSWD_ERR;
 	}
 
 	/* consistency check */
-	if(rc != PBKDF2_SHA1_DK_SIZE){
+	if(rc != dk_len){
 		return LUTIL_PASSWD_ERR;
 	}
 
 	if(!PKCS5_PBKDF2_HMAC(cred->bv_val, cred->bv_len,
 						  salt_value, PBKDF2_SALT_SIZE,
-						  iteration, EVP_sha1(),
-						  PBKDF2_SHA1_DK_SIZE, input_dk_value)){
+						  iteration, md, dk_len, input_dk_value)){
 		return LUTIL_PASSWD_ERR;
 	}
 
-	rc = memcmp(dk_value, input_dk_value, PBKDF2_SHA1_DK_SIZE);
+	rc = memcmp(dk_value, input_dk_value, dk_len);
 #ifdef SLAPD_PBKDF2_DEBUG
 	printf("  Iteration:\t%d\n", iteration);
 	printf("  Base64 Salt:\t%s\n", salt_b64);
@@ -280,407 +304,13 @@ static int pbkdf2_sha1_check(
 	printf("\n");
 
 	printf("  Stored DK:\t");
-	for(i=0; i<PBKDF2_SHA1_DK_SIZE; i++){
+	for(i=0; i<dk_len; i++){
 		printf("%02x", dk_value[i]);
 	}
 	printf("\n");
 
 	printf("  Input DK:\t");
-	for(i=0; i<PBKDF2_SHA1_DK_SIZE; i++){
-		printf("%02x", input_dk_value[i]);
-	}
-	printf("\n");
-	printf("  Result:\t%d\n", rc);
-#endif
-	return rc?LUTIL_PASSWD_ERR:LUTIL_PASSWD_OK;
-}
-
-static int pbkdf2_sha256_format(
-	const struct berval *sc,
-	int iteration,
-	const struct berval *salt,
-	const struct berval *dk,
-	struct berval *msg)
-{
-
-	int rc;
-	char salt_b64[LUTIL_BASE64_ENCODE_LEN(PBKDF2_SALT_SIZE) + 1];
-	char dk_b64[LUTIL_BASE64_ENCODE_LEN(PBKDF2_SHA256_DK_SIZE) + 1];
-
-	rc = lutil_b64_ntop((unsigned char *)salt->bv_val, salt->bv_len,
-						salt_b64, sizeof(salt_b64));
-	if(rc < 0){
-		return LUTIL_PASSWD_ERR;
-	}
-	b64_to_ab64(salt_b64);
-	rc = lutil_b64_ntop((unsigned char *)dk->bv_val, dk->bv_len,
-						dk_b64, sizeof(dk_b64));
-	if(rc < 0){
-		return LUTIL_PASSWD_ERR;
-	}
-	b64_to_ab64(dk_b64);
-	msg->bv_len = asprintf(&msg->bv_val, "%s%d$%s$%s",
-						   sc->bv_val, iteration,
-						   salt_b64, dk_b64);
-	if(msg->bv_len < 0){
-		return LUTIL_PASSWD_ERR;
-	}
-
-	return LUTIL_PASSWD_OK;
-}
-
-static int pbkdf2_sha256_encrypt(
-	const struct berval *scheme,
-	const struct berval *passwd,
-	struct berval *msg,
-	const char **text)
-{
-	unsigned char salt_value[PBKDF2_SALT_SIZE];
-	struct berval salt;
-	unsigned char dk_value[PBKDF2_SHA256_DK_SIZE];
-	struct berval dk;
-	int iteration = PBKDF2_ITERATION;
-	int rc;
-
-	dk.bv_val = (char *)dk_value;
-	dk.bv_len = PBKDF2_SHA256_DK_SIZE;
-	salt.bv_val = (char *)salt_value;
-	salt.bv_len = sizeof(salt_value);
-
-	if(lutil_entropy((unsigned char *)salt.bv_val, salt.bv_len) < 0){
-		return LUTIL_PASSWD_ERR;
-	}
-
-	if(!PKCS5_PBKDF2_HMAC(passwd->bv_val, passwd->bv_len,
-						  (unsigned char *)salt.bv_val, salt.bv_len,
-						  iteration, EVP_sha256(),
-						  PBKDF2_SHA256_DK_SIZE, dk_value)){
-		return LUTIL_PASSWD_ERR;
-	}
-
-#ifdef SLAPD_PBKDF2_DEBUG
-	printf("DEBUG pbkdf2_sha256_encrypt()\n");
-	printf("  Password:\t%s\n", passwd->bv_val);
-
-	printf("  Salt:\t\t");
-	int i;
-	for(i=0; i<salt.bv_len; i++){
-		printf("%02x", salt_value[i]);
-	}
-	printf("\n");
-	printf("  Iteration:\t%d\n", iteration);
-
-	printf("  DK:\t\t");
-	for(i=0; i<PBKDF2_SHA256_DK_SIZE; i++){
-		printf("%02x", dk_value[i]);
-	}
-	printf("\n");
-#endif
-
-	rc = pbkdf2_sha256_format(scheme, iteration, &salt, &dk, msg);
-
-#ifdef SLAPD_PBKDF2_DEBUG
-	printf("  Output:\t%s\n", msg->bv_val);
-#endif
-
-	return rc;
-}
-
-static int pbkdf2_sha256_check(
-	const struct berval *scheme,
-	const struct berval *passwd,
-	const struct berval *cred,
-	const char **text)
-{
-	int rc;
-	int iteration;
-
-	/* salt_value require PBKDF2_SALT_SIZE + 1 in lutil_b64_pton. */
-	unsigned char salt_value[PBKDF2_SALT_SIZE + 1];
-	char salt_b64[LUTIL_BASE64_ENCODE_LEN(PBKDF2_SALT_SIZE) + 1];
-	/* dk_value require PBKDF2_SHA256_DK_SIZE + 1 in lutil_b64_pton. */
-	unsigned char dk_value[PBKDF2_SHA256_DK_SIZE + 1];
-	char dk_b64[LUTIL_BASE64_ENCODE_LEN(PBKDF2_SHA256_DK_SIZE) + 1];
-	unsigned char input_dk_value[PBKDF2_SHA256_DK_SIZE];
-
-#ifdef SLAPD_PBKDF2_DEBUG
-	printf("DEBUG pbkdf2_sha256_check()\n");
-	printf("  Stored Value:\t%s\n", passwd->bv_val);
-	printf("  Input Cred:\t%s\n", cred->bv_val);
-#endif
-
-	iteration = atoi(passwd->bv_val);
-	if(iteration < 1){
-		return LUTIL_PASSWD_ERR;
-	}
-
-	char *ptr;
-	ptr = strchr(passwd->bv_val, '$');
-	if(!ptr){
-		return LUTIL_PASSWD_ERR;
-	}
-	ptr++; /* skip '$' */
-	rc = ab64_to_b64(ptr, salt_b64, sizeof(salt_b64));
-	if(rc < 0){
-		return LUTIL_PASSWD_ERR;
-	}
-
-	ptr = strchr(ptr, '$');
-	if(!ptr){
-		return LUTIL_PASSWD_ERR;
-	}
-	ptr++; /* skip '$' */
-	rc = ab64_to_b64(ptr, dk_b64, sizeof(dk_b64));
-	if(rc < 0){
-		return LUTIL_PASSWD_ERR;
-	}
-
-	/* The targetsize require PBKDF2_SALT_SIZE + 1 in lutil_b64_pton. */
-	rc = lutil_b64_pton(salt_b64, salt_value, PBKDF2_SALT_SIZE + 1);
-	if(rc < 0){
-		return LUTIL_PASSWD_ERR;
-	}
-
-	/* consistency check */
-	if(rc != PBKDF2_SALT_SIZE){
-		return LUTIL_PASSWD_ERR;
-	}
-
-	/* The targetsize require PBKDF2_DK_SIZE + 1 in lutil_b64_pton. */
-	rc = lutil_b64_pton(dk_b64, dk_value, PBKDF2_SHA256_DK_SIZE + 1);
-	if(rc < 0){
-		return LUTIL_PASSWD_ERR;
-	}
-
-	/* consistency check */
-	if(rc != PBKDF2_SHA256_DK_SIZE){
-		return LUTIL_PASSWD_ERR;
-	}
-
-	if(!PKCS5_PBKDF2_HMAC(cred->bv_val, cred->bv_len,
-						  salt_value, PBKDF2_SALT_SIZE,
-						  iteration, EVP_sha256(),
-						  PBKDF2_SHA256_DK_SIZE, input_dk_value)){
-		return LUTIL_PASSWD_ERR;
-	}
-
-	rc = memcmp(dk_value, input_dk_value, PBKDF2_SHA256_DK_SIZE);
-#ifdef SLAPD_PBKDF2_DEBUG
-	printf("  Iteration:\t%d\n", iteration);
-	printf("  Base64 Salt:\t%s\n", salt_b64);
-	printf("  Base64 DK:\t%s\n", dk_b64);
-	int i;
-	printf("  Stored Salt:\t");
-	for(i=0; i<PBKDF2_SALT_SIZE; i++){
-		printf("%02x", salt_value[i]);
-	}
-	printf("\n");
-
-	printf("  Stored DK:\t");
-	for(i=0; i<PBKDF2_SHA256_DK_SIZE; i++){
-		printf("%02x", dk_value[i]);
-	}
-	printf("\n");
-
-	printf("  Input DK:\t");
-	for(i=0; i<PBKDF2_SHA256_DK_SIZE; i++){
-		printf("%02x", input_dk_value[i]);
-	}
-	printf("\n");
-	printf("  Result:\t%d\n", rc);
-#endif
-	return rc?LUTIL_PASSWD_ERR:LUTIL_PASSWD_OK;
-}
-
-static int pbkdf2_sha512_format(
-	const struct berval *sc,
-	int iteration,
-	const struct berval *salt,
-	const struct berval *dk,
-	struct berval *msg)
-{
-
-	int rc;
-	char salt_b64[LUTIL_BASE64_ENCODE_LEN(PBKDF2_SALT_SIZE) + 1];
-	char dk_b64[LUTIL_BASE64_ENCODE_LEN(PBKDF2_SHA512_DK_SIZE) + 1];
-
-	rc = lutil_b64_ntop((unsigned char *)salt->bv_val, salt->bv_len,
-						salt_b64, sizeof(salt_b64));
-	if(rc < 0){
-		return LUTIL_PASSWD_ERR;
-	}
-	b64_to_ab64(salt_b64);
-	rc = lutil_b64_ntop((unsigned char *)dk->bv_val, dk->bv_len,
-						dk_b64, sizeof(dk_b64));
-	if(rc < 0){
-		return LUTIL_PASSWD_ERR;
-	}
-	b64_to_ab64(dk_b64);
-	msg->bv_len = asprintf(&msg->bv_val, "%s%d$%s$%s",
-						   sc->bv_val, iteration,
-						   salt_b64, dk_b64);
-	if(msg->bv_len < 0){
-		return LUTIL_PASSWD_ERR;
-	}
-
-	return LUTIL_PASSWD_OK;
-}
-
-static int pbkdf2_sha512_encrypt(
-	const struct berval *scheme,
-	const struct berval *passwd,
-	struct berval *msg,
-	const char **text)
-{
-	unsigned char salt_value[PBKDF2_SALT_SIZE];
-	struct berval salt;
-	unsigned char dk_value[PBKDF2_SHA512_DK_SIZE];
-	struct berval dk;
-	int iteration = PBKDF2_ITERATION;
-	int rc;
-
-	dk.bv_val = (char *)dk_value;
-	dk.bv_len = PBKDF2_SHA512_DK_SIZE;
-	salt.bv_val = (char *)salt_value;
-	salt.bv_len = sizeof(salt_value);
-
-	if(lutil_entropy((unsigned char *)salt.bv_val, salt.bv_len) < 0){
-		return LUTIL_PASSWD_ERR;
-	}
-
-	if(!PKCS5_PBKDF2_HMAC(passwd->bv_val, passwd->bv_len,
-						  (unsigned char *)salt.bv_val, salt.bv_len,
-						  iteration, EVP_sha512(),
-						  PBKDF2_SHA512_DK_SIZE, dk_value)){
-		return LUTIL_PASSWD_ERR;
-	}
-
-#ifdef SLAPD_PBKDF2_DEBUG
-	printf("DEBUG pbkdf2_sha512_encrypt()\n");
-	printf("  Password:\t%s\n", passwd->bv_val);
-
-	printf("  Salt:\t\t");
-	int i;
-	for(i=0; i<salt.bv_len; i++){
-		printf("%02x", salt_value[i]);
-	}
-	printf("\n");
-	printf("  Iteration:\t%d\n", iteration);
-
-	printf("  DK:\t\t");
-	for(i=0; i<PBKDF2_SHA512_DK_SIZE; i++){
-		printf("%02x", dk_value[i]);
-	}
-	printf("\n");
-#endif
-
-	rc = pbkdf2_sha512_format(scheme, iteration, &salt, &dk, msg);
-
-#ifdef SLAPD_PBKDF2_DEBUG
-	printf("  Output:\t%s\n", msg->bv_val);
-#endif
-
-	return rc;
-}
-
-static int pbkdf2_sha512_check(
-	const struct berval *scheme,
-	const struct berval *passwd,
-	const struct berval *cred,
-	const char **text)
-{
-	int rc;
-	int iteration;
-
-	/* salt_value require PBKDF2_SALT_SIZE + 1 in lutil_b64_pton. */
-	unsigned char salt_value[PBKDF2_SALT_SIZE + 1];
-	char salt_b64[LUTIL_BASE64_ENCODE_LEN(PBKDF2_SALT_SIZE) + 1];
-	/* dk_value require PBKDF2_SHA512_DK_SIZE + 1 in lutil_b64_pton. */
-	unsigned char dk_value[PBKDF2_SHA512_DK_SIZE + 1];
-	char dk_b64[LUTIL_BASE64_ENCODE_LEN(PBKDF2_SHA512_DK_SIZE) + 1];
-	unsigned char input_dk_value[PBKDF2_SHA512_DK_SIZE];
-
-#ifdef SLAPD_PBKDF2_DEBUG
-	printf("DEBUG pbkdf2_sha512_check()\n");
-	printf("  Stored Value:\t%s\n", passwd->bv_val);
-	printf("  Input Cred:\t%s\n", cred->bv_val);
-#endif
-
-	iteration = atoi(passwd->bv_val);
-	if(iteration < 1){
-		return LUTIL_PASSWD_ERR;
-	}
-
-	char *ptr;
-	ptr = strchr(passwd->bv_val, '$');
-	if(!ptr){
-		return LUTIL_PASSWD_ERR;
-	}
-	ptr++; /* skip '$' */
-	rc = ab64_to_b64(ptr, salt_b64, sizeof(salt_b64));
-	if(rc < 0){
-		return LUTIL_PASSWD_ERR;
-	}
-
-	ptr = strchr(ptr, '$');
-	if(!ptr){
-		return LUTIL_PASSWD_ERR;
-	}
-	ptr++; /* skip '$' */
-	rc = ab64_to_b64(ptr, dk_b64, sizeof(dk_b64));
-	if(rc < 0){
-		return LUTIL_PASSWD_ERR;
-	}
-
-	/* The targetsize require PBKDF2_SALT_SIZE + 1 in lutil_b64_pton. */
-	rc = lutil_b64_pton(salt_b64, salt_value, PBKDF2_SALT_SIZE + 1);
-	if(rc < 0){
-		return LUTIL_PASSWD_ERR;
-	}
-
-	/* consistency check */
-	if(rc != PBKDF2_SALT_SIZE){
-		return LUTIL_PASSWD_ERR;
-	}
-
-	/* The targetsize require PBKDF2_DK_SIZE + 1 in lutil_b64_pton. */
-	rc = lutil_b64_pton(dk_b64, dk_value, PBKDF2_SHA512_DK_SIZE + 1);
-	if(rc < 0){
-		return LUTIL_PASSWD_ERR;
-	}
-
-	/* consistency check */
-	if(rc != PBKDF2_SHA512_DK_SIZE){
-		return LUTIL_PASSWD_ERR;
-	}
-
-	if(!PKCS5_PBKDF2_HMAC(cred->bv_val, cred->bv_len,
-						  salt_value, PBKDF2_SALT_SIZE,
-						  iteration, EVP_sha512(),
-						  PBKDF2_SHA512_DK_SIZE, input_dk_value)){
-		return LUTIL_PASSWD_ERR;
-	}
-
-	rc = memcmp(dk_value, input_dk_value, PBKDF2_SHA512_DK_SIZE);
-#ifdef SLAPD_PBKDF2_DEBUG
-	printf("  Iteration:\t%d\n", iteration);
-	printf("  Base64 Salt:\t%s\n", salt_b64);
-	printf("  Base64 DK:\t%s\n", dk_b64);
-	int i;
-	printf("  Stored Salt:\t");
-	for(i=0; i<PBKDF2_SALT_SIZE; i++){
-		printf("%02x", salt_value[i]);
-	}
-	printf("\n");
-
-	printf("  Stored DK:\t");
-	for(i=0; i<PBKDF2_SHA512_DK_SIZE; i++){
-		printf("%02x", dk_value[i]);
-	}
-	printf("\n");
-
-	printf("  Input DK:\t");
-	for(i=0; i<PBKDF2_SHA512_DK_SIZE; i++){
+	for(i=0; i<dk_len; i++){
 		printf("%02x", input_dk_value[i]);
 	}
 	printf("\n");
@@ -692,18 +322,18 @@ static int pbkdf2_sha512_check(
 int init_module(int argc, char *argv[]) {
 	int rc;
 	rc = lutil_passwd_add((struct berval *)&pbkdf2_scheme,
-						  pbkdf2_sha1_check, pbkdf2_sha1_encrypt);
+						  pbkdf2_check, pbkdf2_encrypt);
 	if(rc) return rc;
 	rc = lutil_passwd_add((struct berval *)&pbkdf2_sha1_scheme,
-						  pbkdf2_sha1_check, pbkdf2_sha1_encrypt);
+						  pbkdf2_check, pbkdf2_encrypt);
 	if(rc) return rc;
 
 	rc = lutil_passwd_add((struct berval *)&pbkdf2_sha256_scheme,
-						  pbkdf2_sha256_check, pbkdf2_sha256_encrypt);
+						  pbkdf2_check, pbkdf2_encrypt);
 	if(rc) return rc;
 
 	rc = lutil_passwd_add((struct berval *)&pbkdf2_sha512_scheme,
-						  pbkdf2_sha512_check, pbkdf2_sha512_encrypt);
+						  pbkdf2_check, pbkdf2_encrypt);
 	return rc;
 }
 
