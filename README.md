@@ -47,13 +47,13 @@ or
 You can get hash to use slappasswd.
 
     $ slappasswd -o module-load=pw-pbkdf2.la -h {PBKDF2} -s secret
-    {PBKDF2}60000$Y6ZHtTTbeUgpIbIW0QDmDA$j/aU7jFKUSbH4UobNQDm9OEIwuw
+    {PBKDF2}10000$8muAzQL.wFBo0phhjcMveQ$ac91mnXD6sxQQWub2qwonD5Q.QE
 
 A quick way to test whether it's working is to customize the rootdn and
 rootpw in slapd.conf, eg:
 
     rootdn "cn=Manager,dc=example,dc=com"
-    rootpw {PBKDF2}60000$Y6ZHtTTbeUgpIbIW0QDmDA$j/aU7jFKUSbH4UobNQDm9OEIwuw
+    rootpw {PBKDF2}10000$8muAzQL.wFBo0phhjcMveQ$ac91mnXD6sxQQWub2qwonD5Q.QE
 
 Then to test, run something like:
 
@@ -99,5 +99,6 @@ top-level directory of the distribution or, alternatively, at
 
 # ACKNOWLEDGEMENT
 This work was initially developed by HAMANO Tsukasa <hamano@osstech.co.jp>
+
 Contributor:
-Luca Bruno(lucab)
+- Luca Bruno(lucab)
