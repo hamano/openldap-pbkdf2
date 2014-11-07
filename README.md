@@ -13,6 +13,8 @@ Schemes:
 # Requirements
 
   * OpenSSL 1.0.0 or later
+or
+  * Nettle 2.7.1 or later
 
 # Installations
 
@@ -97,3 +99,5 @@ top-level directory of the distribution or, alternatively, at
 
 # ACKNOWLEDGEMENT
 This work was initially developed by HAMANO Tsukasa <hamano@osstech.co.jp>
+Contributor:
+Luca Bruno(lucab)
