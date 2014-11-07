@@ -26,8 +26,10 @@
 #include <stdlib.h>
 
 #ifdef HAVE_OPENSSL
+#define PBKDF2_LIB "OpenSSL"
 #include <openssl/evp.h>
 #elif HAVE_GNUTLS
+#define PBKDF2_LIB "Nettle"
 #include <nettle/pbkdf2.h>
 #include <nettle/hmac.h>
 typedef void (*pbkdf2_hmac_update)(void *, unsigned, const uint8_t *);
@@ -230,6 +232,7 @@ static int pbkdf2_encrypt(
 
 #ifdef SLAPD_PBKDF2_DEBUG
 	printf("Encrypt for %s\n", scheme->bv_val);
+	printf("  Library:\t%s\n", PBKDF2_LIB);
 	printf("  Password:\t%s\n", passwd->bv_val);
 
 	printf("  Salt:\t\t");
