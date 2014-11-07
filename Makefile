@@ -12,7 +12,7 @@ OPT = -g -O2 -Wall
 #DEFS = -DSLAPD_PBKDF2_DEBUG
 
 INCS = $(LDAP_INC)
-LIBS = $(LDAP_LIB) -lcrypto
+LIBS = $(LDAP_LIB)
 
 PROGRAMS = pw-pbkdf2.la
 LTVER = 0:0:0
