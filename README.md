@@ -2,6 +2,7 @@ PBKDF2 for OpenLDAP
 =======================
 
 *NOTE: This module has already been merged into official repository. see contrib/slapd-modules/passwd/pbkdf2/*
+*However module of official release does not support GNUTLS yet. Please use the repository for building with GNUTLS*
 
 pw-pbkdf2.c provides PBKDF2 key derivation functions in OpenLDAP.
 
