@@ -69,6 +69,15 @@ You can specify -DSLAPD_PBKDF2_DEBUG flag for debugging.
 
     {PBKDF2}<Iteration>$<Adapted Base64 Salt>$<Adapted Base64 DK>
 
+# Sample code for Python Passlib
+
+~~~
+#!/usr/bin/env python
+
+from passlib.hash import ldap_pbkdf2_sha1
+print(ldap_pbkdf2_sha1.encrypt("secret", rounds=10000))
+~~~
+
 # References
 
 * [RFC 2898 Password-Based Cryptography][^1]
