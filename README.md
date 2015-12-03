@@ -23,51 +23,73 @@ or
 
 First, You need to configure and build OpenLDAP.
 
-    $ cd <OPENLDAP_BUILD_DIR>/contrib/slapd-modules/passwd/
-    $ git clone https://github.com/hamano/openldap-pbkdf2.git
-    $ cd openldap-pbkdf2/
-    $ make
-    # make install
+~~~
+$ cd <OPENLDAP_BUILD_DIR>/contrib/slapd-modules/passwd/
+$ git clone https://github.com/hamano/openldap-pbkdf2.git
+$ cd openldap-pbkdf2/
+$ make
+# make install
+~~~
 
 # Configration
 
 In slapd.conf:
 
-    moduleload pw-pbkdf2.so
+~~~
+moduleload pw-pbkdf2.so
+~~~
 
 You can also tell OpenLDAP to use the schemes when processing LDAP
 Password Modify Extended Operations, thanks to the password-hash
 option in slapd.conf. For example:
 
-    password-hash {PBKDF2}
+~~~
+password-hash {PBKDF2}
+~~~
+
 or
-    password-hash {PBKDF2-SHA256}
+
+~~~
+password-hash {PBKDF2-SHA256}
+~~~
+
 or
-    password-hash {PBKDF2-SHA512}
+
+~~~
+password-hash {PBKDF2-SHA512}
+~~~
 
 # Testing
 
 You can get hash to use slappasswd.
 
-    $ slappasswd -o module-load=pw-pbkdf2.la -h {PBKDF2} -s secret
-    {PBKDF2}10000$8muAzQL.wFBo0phhjcMveQ$ac91mnXD6sxQQWub2qwonD5Q.QE
+~~~
+$ slappasswd -o module-load=pw-pbkdf2.la -h {PBKDF2} -s secret
+{PBKDF2}10000$8muAzQL.wFBo0phhjcMveQ$ac91mnXD6sxQQWub2qwonD5Q.QE
+~~~
 
 A quick way to test whether it's working is to customize the rootdn and
 rootpw in slapd.conf, eg:
 
-    rootdn "cn=Manager,dc=example,dc=com"
-    rootpw {PBKDF2}10000$8muAzQL.wFBo0phhjcMveQ$ac91mnXD6sxQQWub2qwonD5Q.QE
+~~~
+rootdn "cn=Manager,dc=example,dc=com"
+rootpw {PBKDF2}10000$8muAzQL.wFBo0phhjcMveQ$ac91mnXD6sxQQWub2qwonD5Q.QE
+~~~
 
 Then to test, run something like:
 
-    $ ldapsearch -x -b "dc=example,dc=com" -D "cn=Manager,dc=example,dc=com" -w secret
+~~~
+$ ldapsearch -x -b "dc=example,dc=com" -D "cn=Manager,dc=example,dc=com" -w secret
+~~~
 
 # Debugging
 You can specify -DSLAPD_PBKDF2_DEBUG flag for debugging.
 
 # Message Format
 
-    {PBKDF2}<Iteration>$<Adapted Base64 Salt>$<Adapted Base64 DK>
+~~~
+{PBKDF2}<Iteration>$<Adapted Base64 Salt>$<Adapted Base64 DK>
+~~~
 
 # Sample code for Python Passlib
 
