@@ -21,7 +21,7 @@ or
 
 # Installations
 
-First, You need to configure and build OpenLDAP.
+First, You need to configure and build OpenLDAP with --enable-modules option.
 
 ~~~
 $ cd <OPENLDAP_BUILD_DIR>/contrib/slapd-modules/passwd/
