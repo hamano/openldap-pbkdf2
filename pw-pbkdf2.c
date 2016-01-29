@@ -19,6 +19,7 @@
 #define _GNU_SOURCE
 
 #include "portable.h"
+#include <slap.h>
 #include <ac/string.h>
 #include "lber_pvt.h"
 #include "lutil.h"
@@ -38,7 +39,7 @@ typedef void (*pbkdf2_hmac_digest)(void *, unsigned, uint8_t *);
 #error Unsupported crypto backend.
 #endif
 
-#define PBKDF2_ITERATION 10000
+static int pbkdf2_iteration = 10000;
 #define PBKDF2_SALT_SIZE 16
 #define PBKDF2_SHA1_DK_SIZE 20
 #define PBKDF2_SHA256_DK_SIZE 32
@@ -150,7 +151,7 @@ static int pbkdf2_encrypt(
 	struct berval salt;
 	unsigned char dk_value[PBKDF2_MAX_DK_SIZE];
 	struct berval dk;
-	int iteration = PBKDF2_ITERATION;
+	int iteration = pbkdf2_iteration;
 	int rc;
 #ifdef HAVE_OPENSSL
 	const EVP_MD *md;
@@ -430,6 +431,15 @@ static int pbkdf2_check(
 
 int init_module(int argc, char *argv[]) {
 	int rc;
+	char *env = getenv("PBKDF2_ITERATION");
+	if(env){
+		pbkdf2_iteration = atoi(env);
+		if(pbkdf2_iteration < 1){
+			Debug( LDAP_DEBUG_ANY, "pbkdf2_iteration must be greater than 1.",
+				   NULL, NULL, NULL);
+			return -1;
+		}
+	}
 	rc = lutil_passwd_add((struct berval *)&pbkdf2_scheme,
 						  pbkdf2_check, pbkdf2_encrypt);
 	if(rc) return rc;
