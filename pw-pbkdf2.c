@@ -681,6 +681,8 @@ static int pbkdf2_check(
 int init_module(int argc, char *argv[]) {
 	int rc;
 	char *env = getenv("PBKDF2_ITERATION");
+
+#if HAVE_MOZNSS
 	SECStatus rv;
 	rv = NSS_NoDB_Init(".");
 	if (rv != SECSuccess)
@@ -689,6 +691,8 @@ int init_module(int argc, char *argv[]) {
 		PR_GetError());
 		return LUTIL_PASSWD_ERR;
 	}
+#endif
+
 	if(env){
 		pbkdf2_iteration = atoi(env);
 		if(pbkdf2_iteration < 1){
