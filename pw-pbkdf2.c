@@ -45,7 +45,8 @@ typedef void (*pbkdf2_hmac_digest)(void *, unsigned, uint8_t *);
 #endif
 
 static int pbkdf2_iteration = 10000;
-#define PBKDF2_SALT_SIZE 16
+#define PBKDF2_DEFAULT_SALT_SIZE 16
+#define PBKDF2_MAX_SALT_SIZE 64
 #define PBKDF2_SHA1_DK_SIZE 20
 #define PBKDF2_SHA256_DK_SIZE 32
 #define PBKDF2_SHA512_DK_SIZE 64
@@ -118,7 +119,7 @@ static int pbkdf2_format(
 {
 
 	int rc, msg_len;
-	char salt_b64[LUTIL_BASE64_ENCODE_LEN(PBKDF2_SALT_SIZE) + 1];
+	char salt_b64[LUTIL_BASE64_ENCODE_LEN(PBKDF2_MAX_SALT_SIZE) + 1];
 	char dk_b64[LUTIL_BASE64_ENCODE_LEN(PBKDF2_MAX_DK_SIZE) + 1];
 
 	rc = lutil_b64_ntop((unsigned char *)salt->bv_val, salt->bv_len,
@@ -151,7 +152,7 @@ static int pbkdf2_encrypt(
 	struct berval *msg,
 	const char **text)
 {
-	unsigned char salt_value[PBKDF2_SALT_SIZE];
+	unsigned char salt_value[PBKDF2_DEFAULT_SALT_SIZE];
 	struct berval salt;
 	unsigned char dk_value[PBKDF2_MAX_DK_SIZE];
 	struct berval dk;
@@ -268,12 +269,12 @@ static int pbkdf2_encrypt(
 	}
 
 	if(!ber_bvcmp(scheme, &pbkdf2_scheme) || !ber_bvcmp(scheme, &pbkdf2_sha1_scheme)){
-		if (SECITEM_AllocItem(salt_arena, &salt_moz, (unsigned int) PBKDF2_SALT_SIZE) == NULL)
+		if (SECITEM_AllocItem(salt_arena, &salt_moz, (unsigned int) PBKDF2_DEFAULT_SALT_SIZE) == NULL)
 		{
 			fprintf(stderr,"error initializing salt_moz");
 			return LUTIL_PASSWD_ERR;
 		}
-		salt_moz.data = memcpy(salt_moz.data , salt_value, PBKDF2_SALT_SIZE);
+		salt_moz.data = memcpy(salt_moz.data , salt_value, PBKDF2_DEFAULT_SALT_SIZE);
 		if (SECITEM_AllocItem(pw_arena, &pwitem, (unsigned int)passwd->bv_len) == NULL)
 		{
 			fprintf(stderr,"error initializing pw_item");
@@ -294,12 +295,12 @@ static int pbkdf2_encrypt(
 		dk.bv_val=memcpy(dk.bv_val, symkey->data, symkey->len);
 		PK11_FreeSymKey(key);
 	}else if(!ber_bvcmp(scheme, &pbkdf2_sha256_scheme)){
-		if (SECITEM_AllocItem(salt_arena, &salt_moz, (unsigned int) PBKDF2_SALT_SIZE) == NULL)
+		if (SECITEM_AllocItem(salt_arena, &salt_moz, (unsigned int) PBKDF2_DEFAULT_SALT_SIZE) == NULL)
 		{
 			fprintf(stderr,"error initializing salt_moz");
 			return LUTIL_PASSWD_ERR;
 		}
-		salt_moz.data = memcpy(salt_moz.data , salt_value, PBKDF2_SALT_SIZE);
+		salt_moz.data = memcpy(salt_moz.data , salt_value, PBKDF2_DEFAULT_SALT_SIZE);
 		if (SECITEM_AllocItem(pw_arena, &pwitem, (unsigned int)passwd->bv_len) == NULL)
 		{
 			fprintf(stderr,"error initializing pw_item");
@@ -320,12 +321,12 @@ static int pbkdf2_encrypt(
 		dk.bv_val=memcpy(dk.bv_val, symkey->data, symkey->len);
 		PK11_FreeSymKey(key);
 	}else if(!ber_bvcmp(scheme, &pbkdf2_sha512_scheme)){
-		if (SECITEM_AllocItem(salt_arena, &salt_moz, (unsigned int) PBKDF2_SALT_SIZE) == NULL)
+		if (SECITEM_AllocItem(salt_arena, &salt_moz, (unsigned int) PBKDF2_DEFAULT_SALT_SIZE) == NULL)
 		{
 			fprintf(stderr,"error initializing salt_moz");
 			return LUTIL_PASSWD_ERR;
 		}
-		salt_moz.data = memcpy(salt_moz.data , salt_value, PBKDF2_SALT_SIZE);
+		salt_moz.data = memcpy(salt_moz.data , salt_value, PBKDF2_DEFAULT_SALT_SIZE);
 		if (SECITEM_AllocItem(pw_arena, &pwitem, (unsigned int)passwd->bv_len) == NULL)
 		{
 			fprintf(stderr,"error initializing pw_item");
@@ -394,14 +395,15 @@ static int pbkdf2_check(
 	int rc;
 	int iteration;
 
-	/* salt_value require PBKDF2_SALT_SIZE + 1 in lutil_b64_pton. */
-	unsigned char salt_value[PBKDF2_SALT_SIZE + 1];
-	char salt_b64[LUTIL_BASE64_ENCODE_LEN(PBKDF2_SALT_SIZE) + 1];
+	/* salt_value require PBKDF2_MAX_SALT_SIZE + 1 in lutil_b64_pton. */
+	unsigned char salt_value[PBKDF2_MAX_SALT_SIZE + 1];
+	char salt_b64[LUTIL_BASE64_ENCODE_LEN(PBKDF2_MAX_SALT_SIZE) + 1];
 	/* dk_value require PBKDF2_MAX_DK_SIZE + 1 in lutil_b64_pton. */
 	unsigned char dk_value[PBKDF2_MAX_DK_SIZE + 1];
 	char dk_b64[LUTIL_BASE64_ENCODE_LEN(PBKDF2_MAX_DK_SIZE) + 1];
 	unsigned char input_dk_value[PBKDF2_MAX_DK_SIZE];
 	size_t dk_len;
+	size_t salt_len;
 #ifdef HAVE_OPENSSL
 	const EVP_MD *md;
 #elif HAVE_GNUTLS
@@ -492,16 +494,13 @@ static int pbkdf2_check(
 		return LUTIL_PASSWD_ERR;
 	}
 
-	/* The targetsize require PBKDF2_SALT_SIZE + 1 in lutil_b64_pton. */
-	rc = lutil_b64_pton(salt_b64, salt_value, PBKDF2_SALT_SIZE + 1);
+	/* The targetsize require PBKDF2_MAX_SALT_SIZE + 1 in lutil_b64_pton. */
+	rc = lutil_b64_pton(salt_b64, salt_value, PBKDF2_MAX_SALT_SIZE + 1);
 	if(rc < 0){
 		return LUTIL_PASSWD_ERR;
 	}
 
-	/* consistency check */
-	if(rc != PBKDF2_SALT_SIZE){
-		return LUTIL_PASSWD_ERR;
-	}
+	salt_len = rc;
 
 	/* The targetsize require PBKDF2_MAX_DK_SIZE + 1 in lutil_b64_pton. */
 	rc = lutil_b64_pton(dk_b64, dk_value, sizeof(dk_value));
@@ -516,14 +515,14 @@ static int pbkdf2_check(
 
 #ifdef HAVE_OPENSSL
 	if(!PKCS5_PBKDF2_HMAC(cred->bv_val, cred->bv_len,
-						  salt_value, PBKDF2_SALT_SIZE,
+						  salt_value, salt_len,
 						  iteration, md, dk_len, input_dk_value)){
 		return LUTIL_PASSWD_ERR;
 	}
 #elif HAVE_GNUTLS
 	PBKDF2(current_ctx, current_hmac_update, current_hmac_digest,
 						  dk_len, iteration,
-						  PBKDF2_SALT_SIZE, salt_value,
+						  salt_len, salt_value,
 						  dk_len, input_dk_value);
 
 #elif HAVE_MOZNSS
@@ -560,12 +559,12 @@ static int pbkdf2_check(
 	}
 
 	if(!ber_bvcmp(scheme, &pbkdf2_scheme) || !ber_bvcmp(scheme, &pbkdf2_sha1_scheme)){
-		if (SECITEM_AllocItem(salt_arena, &salt_moz, (unsigned int) PBKDF2_SALT_SIZE) == NULL)
+		if (SECITEM_AllocItem(salt_arena, &salt_moz, (unsigned int) salt_len) == NULL)
 		{
 			fprintf(stderr,"error initializing salt_moz");
 			return LUTIL_PASSWD_ERR;
 		}
-		salt_moz.data = memcpy(salt_moz.data , salt_value, PBKDF2_SALT_SIZE);
+		salt_moz.data = memcpy(salt_moz.data , salt_value, salt_len);
 		if (SECITEM_AllocItem(pw_arena, &pwitem, (unsigned int)cred->bv_len) == NULL)
 		{
 			fprintf(stderr,"error initializing pw_item");
@@ -586,12 +585,12 @@ static int pbkdf2_check(
 		memcpy(input_dk_value, symkey->data, symkey->len);
 		PK11_FreeSymKey(key);
 	}else if(!ber_bvcmp(scheme, &pbkdf2_sha256_scheme)){
-		if (SECITEM_AllocItem(salt_arena, &salt_moz, (unsigned int) PBKDF2_SALT_SIZE) == NULL)
+		if (SECITEM_AllocItem(salt_arena, &salt_moz, (unsigned int) salt_len) == NULL)
 		{
 			fprintf(stderr,"error initializing salt_moz");
 			return LUTIL_PASSWD_ERR;
 		} 
-		salt_moz.data = memcpy(salt_moz.data , salt_value, PBKDF2_SALT_SIZE);
+		salt_moz.data = memcpy(salt_moz.data , salt_value, salt_len);
 		if (SECITEM_AllocItem(pw_arena, &pwitem, (unsigned int)cred->bv_len) == NULL)
 		{
 			fprintf(stderr,"error initializing pw_item");
@@ -612,12 +611,12 @@ static int pbkdf2_check(
 		memcpy(input_dk_value, symkey->data, symkey->len);
 		PK11_FreeSymKey(key);
 	}else if(!ber_bvcmp(scheme, &pbkdf2_sha512_scheme)){
-		if (SECITEM_AllocItem(salt_arena, &salt_moz, (unsigned int) PBKDF2_SALT_SIZE) == NULL)
+		if (SECITEM_AllocItem(salt_arena, &salt_moz, (unsigned int) salt_len) == NULL)
 		{
 			fprintf(stderr,"error initializing salt_moz");
 			return LUTIL_PASSWD_ERR;
 		}
-		salt_moz.data = memcpy(salt_moz.data , salt_value, PBKDF2_SALT_SIZE);
+		salt_moz.data = memcpy(salt_moz.data , salt_value, salt_len);
 		if (SECITEM_AllocItem(pw_arena, &pwitem, (unsigned int)cred->bv_len) == NULL)
 		{
 			fprintf(stderr,"error initializing pw_item");
@@ -656,7 +655,7 @@ static int pbkdf2_check(
 	printf("  Base64 DK:\t%s\n", dk_b64);
 	printf("  Stored Salt:\t");
 	int i;
-	for(i=0; i<PBKDF2_SALT_SIZE; i++){
+	for(i=0; i<salt_len; i++){
 		printf("%02x", salt_value[i]);
 	}
 	printf("\n");
